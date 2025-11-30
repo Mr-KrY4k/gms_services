@@ -28,10 +28,12 @@ dart run gms_services:setup
 - ✅ Добавит Google Services и Firebase Crashlytics плагины в `android/settings.gradle.kts`
 - ✅ Применит плагины в `android/app/build.gradle.kts`
 - ✅ Добавит необходимые зависимости в блок `dependencies` в `android/app/build.gradle.kts`
+- ✅ Добавит настройку иконки уведомлений Firebase в `android/app/src/main/AndroidManifest.xml`
 
 **После настройки:**
 1. Добавьте файл `google-services.json` в папку `android/app/` (если его еще нет)
-2. Пересоберите проект: `flutter clean && flutter pub get`
+2. Добавьте иконку для уведомлений Firebase: создайте файл `android/app/src/main/res/drawable/firebase_icon_push.png` (или используйте существующую иконку)
+3. Пересоберите проект: `flutter clean && flutter pub get`
 
 ### Удаление настроек
 
@@ -45,6 +47,7 @@ dart run gms_services:cleanup
 - ✅ Удалит Google Services и Firebase Crashlytics плагины из `android/settings.gradle.kts`
 - ✅ Удалит применение плагинов из `android/app/build.gradle.kts`
 - ✅ Удалит зависимости, добавленные плагином, из блока `dependencies`
+- ✅ Удалит настройки Firebase из `android/app/src/main/AndroidManifest.xml`
 
 ### Используемые версии
 

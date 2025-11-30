@@ -22,6 +22,8 @@ const String playServicesLocation =
     'implementation("com.google.android.gms:play-services-location:21.3.0")';
 const String installReferrer =
     'implementation("com.android.installreferrer:installreferrer:2.2")';
+const String firebaseNotificationIcon =
+    '<meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/firebase_icon_push"/>';
 
 void main(List<String> args) {
   print('🔧 Настройка Android проекта для плагина gms_services...\n');
@@ -82,11 +84,29 @@ void main(List<String> args) {
     print('⚠️  Файл app/build.gradle.kts не найден. Пропуск...');
   }
 
+  // Настройка AndroidManifest.xml
+  final manifestFile = File(
+    '${androidDir.path}/app/src/main/AndroidManifest.xml',
+  );
+  if (manifestFile.existsSync()) {
+    print('📝 Обновление AndroidManifest.xml...');
+    if (_updateAndroidManifest(manifestFile)) {
+      changesMade = true;
+      print('✅ AndroidManifest.xml обновлен успешно.');
+    } else {
+      print('ℹ️  AndroidManifest.xml уже содержит необходимые настройки.');
+    }
+  } else {
+    print('⚠️  Файл AndroidManifest.xml не найден. Пропуск...');
+  }
+
   if (changesMade) {
     print('\n✅ Настройка завершена! Не забудьте:');
     print('   1. Добавить файл google-services.json в android/app/');
-    print('   2. Выполнить flutter pub get');
-    print('   3. Пересобрать проект');
+    print('   2. Добавить иконку для пуш-уведомлений:');
+    print('      android/app/src/main/res/drawable/firebase_icon_push.png');
+    print('   3. Выполнить flutter pub get');
+    print('   4. Пересобрать проект');
   } else {
     print('\n✅ Проект уже настроен правильно!');
   }
@@ -279,4 +299,50 @@ bool _addDependencies(File file) {
   }
 
   return false;
+}
+
+bool _updateAndroidManifest(File file) {
+  final lines = file.readAsLinesSync();
+
+  // Проверяем, есть ли уже meta-data для Firebase notification icon
+  final hasMetaData = lines.any(
+    (line) => line.contains(
+      'com.google.firebase.messaging.default_notification_icon',
+    ),
+  );
+
+  if (hasMetaData) {
+    return false; // Уже добавлено
+  }
+
+  // Ищем закрывающий тег application
+  int applicationCloseIndex = -1;
+  for (int i = 0; i < lines.length; i++) {
+    if (lines[i].trim() == '</application>') {
+      applicationCloseIndex = i;
+      break;
+    }
+  }
+
+  if (applicationCloseIndex == -1) {
+    return false; // Закрывающий тег application не найден
+  }
+
+  // Определяем отступ для вставки (обычно 8 пробелов для элементов внутри application)
+  final indent = '        ';
+
+  // Вставляем meta-data перед закрывающим тегом application
+  final newLines = <String>[];
+  for (int i = 0; i < lines.length; i++) {
+    if (i == applicationCloseIndex) {
+      // Вставляем перед закрывающим тегом
+      newLines.add('$indent$firebaseNotificationIcon');
+      newLines.add(lines[i]);
+    } else {
+      newLines.add(lines[i]);
+    }
+  }
+
+  file.writeAsStringSync(newLines.join('\n') + '\n');
+  return true;
 }

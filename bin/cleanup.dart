@@ -70,6 +70,20 @@ void main(List<String> args) {
     print('⚠️  Файл app/build.gradle.kts не найден. Пропуск...');
   }
 
+  // Удаление из AndroidManifest.xml
+  final manifestFile = File('${androidDir.path}/app/src/main/AndroidManifest.xml');
+  if (manifestFile.existsSync()) {
+    print('📝 Обновление AndroidManifest.xml...');
+    if (_removeFromAndroidManifest(manifestFile)) {
+      changesMade = true;
+      print('✅ Настройки удалены из AndroidManifest.xml.');
+    } else {
+      print('ℹ️  Настройки не найдены в AndroidManifest.xml.');
+    }
+  } else {
+    print('⚠️  Файл AndroidManifest.xml не найден. Пропуск...');
+  }
+
   if (changesMade) {
     print('\n✅ Удаление настроек завершено!');
   } else {
@@ -288,6 +302,37 @@ bool _removeDependencies(File file) {
   }
 
   if (newLines.length != lines.length || foundDependencies) {
+    file.writeAsStringSync(newLines.join('\n') + '\n');
+    return true;
+  }
+
+  return false;
+}
+
+bool _removeFromAndroidManifest(File file) {
+  final lines = file.readAsLinesSync();
+
+  // Проверяем, есть ли meta-data для Firebase notification icon
+  final hasMetaData = lines.any((line) =>
+    line.contains('com.google.firebase.messaging.default_notification_icon'));
+  
+  if (!hasMetaData) {
+    return false; // Нечего удалять
+  }
+
+  final newLines = <String>[];
+  bool found = false;
+
+  for (final line in lines) {
+    // Пропускаем строку с meta-data для Firebase notification icon
+    if (line.contains('com.google.firebase.messaging.default_notification_icon')) {
+      found = true;
+      continue;
+    }
+    newLines.add(line);
+  }
+
+  if (found) {
     file.writeAsStringSync(newLines.join('\n') + '\n');
     return true;
   }
