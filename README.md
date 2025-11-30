@@ -57,6 +57,39 @@ dart run gms_services:cleanup
 - Play Services Location: `21.3.0`
 - Install Referrer: `2.2`
 
+## Программное использование API
+
+Если вы хотите использовать функции setup и cleanup программно из другого плагина или приложения:
+
+```dart
+import 'package:gms_services/gms_services_setup.dart';
+
+// Настройка Android проекта
+final setupResult = await setupGmsServices();
+if (setupResult.changesMade) {
+  print('Настройка завершена!');
+  for (final message in setupResult.messages) {
+    print(message);
+  }
+}
+
+// Удаление настроек
+final cleanupResult = await cleanupGmsServices();
+if (cleanupResult.changesMade) {
+  print('Настройки удалены!');
+  for (final message in cleanupResult.messages) {
+    print(message);
+  }
+}
+
+// Можно указать путь к проекту явно
+final result = await setupGmsServices(
+  projectRoot: '/path/to/your/flutter/project',
+);
+```
+
+Это особенно полезно, если вы создаете другой плагин, который должен автоматически настраивать gms_services для пользователя.
+
 ## Использование
 
 ```dart
