@@ -18,6 +18,10 @@ const String crashlyticsPlugin =
     'id("com.google.firebase.crashlytics") version "3.0.2" apply false';
 const String googleServicesApply = 'id("com.google.gms.google-services")';
 const String crashlyticsApply = 'id("com.google.firebase.crashlytics")';
+const String playServicesLocation =
+    'implementation("com.google.android.gms:play-services-location:21.3.0")';
+const String installReferrer =
+    'implementation("com.android.installreferrer:installreferrer:2.2")';
 
 void main(List<String> args) {
   print('🔧 Настройка Android проекта для плагина gms_services...\n');
@@ -56,8 +60,20 @@ void main(List<String> args) {
   final appBuildFile = File('${androidDir.path}/app/build.gradle.kts');
   if (appBuildFile.existsSync()) {
     print('📝 Обновление app/build.gradle.kts...');
+    bool pluginsUpdated = false;
+    bool dependenciesUpdated = false;
+
     if (_updateAppBuildGradle(appBuildFile)) {
+      pluginsUpdated = true;
       changesMade = true;
+    }
+
+    if (_addDependencies(appBuildFile)) {
+      dependenciesUpdated = true;
+      changesMade = true;
+    }
+
+    if (pluginsUpdated || dependenciesUpdated) {
       print('✅ app/build.gradle.kts обновлен успешно.');
     } else {
       print('ℹ️  app/build.gradle.kts уже содержит необходимые настройки.');
@@ -177,4 +193,90 @@ bool _updateAppBuildGradle(File file) {
     file.writeAsStringSync(newContent);
     return true;
   }
+}
+
+bool _addDependencies(File file) {
+  final content = file.readAsStringSync();
+
+  // Проверяем, есть ли уже зависимости
+  if (content.contains('play-services-location:21.3.0') &&
+      content.contains('installreferrer:2.2')) {
+    return false; // Уже добавлено
+  }
+
+  // Ищем блок dependencies
+  final dependenciesBlockRegex = RegExp(
+    r'dependencies\s*\{[^}]*\}',
+    multiLine: true,
+    dotAll: true,
+  );
+
+  final match = dependenciesBlockRegex.firstMatch(content);
+  if (match != null) {
+    // Блок dependencies существует
+    final dependenciesBlock = match.group(0)!;
+
+    // Проверяем, есть ли уже нужные зависимости в блоке
+    if (dependenciesBlock.contains('play-services-location:21.3.0') &&
+        dependenciesBlock.contains('installreferrer:2.2')) {
+      return false;
+    }
+
+    // Добавляем зависимости перед закрывающей скобкой блока
+    String dependenciesToAdd = '';
+    if (!dependenciesBlock.contains('play-services-location:21.3.0')) {
+      dependenciesToAdd +=
+          '    // Зависимости для gms_services:\n    $playServicesLocation\n';
+    }
+    if (!dependenciesBlock.contains('installreferrer:2.2')) {
+      if (!dependenciesToAdd.contains('// Зависимости для gms_services:')) {
+        dependenciesToAdd += '    // Зависимости для gms_services:\n';
+      }
+      dependenciesToAdd += '    $installReferrer\n';
+    }
+
+    if (dependenciesToAdd.isNotEmpty) {
+      final updatedDependenciesBlock = dependenciesBlock.replaceFirst(
+        '}',
+        dependenciesToAdd + '}',
+      );
+
+      final newContent = content.replaceFirst(
+        dependenciesBlock,
+        updatedDependenciesBlock,
+      );
+      file.writeAsStringSync(newContent);
+      return true;
+    }
+  } else {
+    // Блока dependencies нет, создаем его после блока flutter
+    final flutterBlockRegex = RegExp(
+      r'flutter\s*\{[^}]*\}',
+      multiLine: true,
+      dotAll: true,
+    );
+
+    final flutterMatch = flutterBlockRegex.firstMatch(content);
+    if (flutterMatch != null) {
+      // Добавляем после блока flutter
+      final flutterBlock = flutterMatch.group(0)!;
+      final flutterBlockEnd =
+          content.indexOf(flutterBlock) + flutterBlock.length;
+      final before = content.substring(0, flutterBlockEnd);
+      final after = content.substring(flutterBlockEnd);
+
+      final newContent =
+          '$before\n\ndependencies {\n    // Зависимости для gms_services:\n    $playServicesLocation\n    $installReferrer\n}\n$after';
+      file.writeAsStringSync(newContent);
+      return true;
+    } else {
+      // Если блока flutter нет, добавляем в конец файла
+      final newContent =
+          '$content\n\ndependencies {\n    // Зависимости для gms_services:\n    $playServicesLocation\n    $installReferrer\n}\n';
+      file.writeAsStringSync(newContent);
+      return true;
+    }
+  }
+
+  return false;
 }

@@ -27,6 +27,7 @@ dart run gms_services:setup
 Скрипт автоматически:
 - ✅ Добавит Google Services и Firebase Crashlytics плагины в `android/settings.gradle.kts`
 - ✅ Применит плагины в `android/app/build.gradle.kts`
+- ✅ Добавит необходимые зависимости в блок `dependencies` в `android/app/build.gradle.kts`
 
 **После настройки:**
 1. Добавьте файл `google-services.json` в папку `android/app/` (если его еще нет)
@@ -43,12 +44,15 @@ dart run gms_services:cleanup
 Скрипт автоматически:
 - ✅ Удалит Google Services и Firebase Crashlytics плагины из `android/settings.gradle.kts`
 - ✅ Удалит применение плагинов из `android/app/build.gradle.kts`
+- ✅ Удалит зависимости, добавленные плагином, из блока `dependencies`
 
 ### Используемые версии
 
 Плагин автоматически настроит следующие версии:
 - Google Services: `4.4.2`
 - Firebase Crashlytics: `3.0.2`
+- Play Services Location: `21.3.0`
+- Install Referrer: `2.2`
 
 ## Использование
 

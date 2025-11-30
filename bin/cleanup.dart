@@ -48,11 +48,23 @@ void main(List<String> args) {
   final appBuildFile = File('${androidDir.path}/app/build.gradle.kts');
   if (appBuildFile.existsSync()) {
     print('📝 Обновление app/build.gradle.kts...');
+    bool pluginsRemoved = false;
+    bool dependenciesRemoved = false;
+    
     if (_removeFromAppBuildGradle(appBuildFile)) {
+      pluginsRemoved = true;
       changesMade = true;
-      print('✅ Плагины удалены из app/build.gradle.kts.');
+    }
+    
+    if (_removeDependencies(appBuildFile)) {
+      dependenciesRemoved = true;
+      changesMade = true;
+    }
+    
+    if (pluginsRemoved || dependenciesRemoved) {
+      print('✅ Настройки удалены из app/build.gradle.kts.');
     } else {
-      print('ℹ️  Плагины не найдены в app/build.gradle.kts.');
+      print('ℹ️  Настройки не найдены в app/build.gradle.kts.');
     }
   } else {
     print('⚠️  Файл app/build.gradle.kts не найден. Пропуск...');
@@ -171,6 +183,111 @@ bool _removeFromAppBuildGradle(File file) {
   }
 
   if (newLines.length != lines.length || foundComment) {
+    file.writeAsStringSync(newLines.join('\n') + '\n');
+    return true;
+  }
+
+  return false;
+}
+
+bool _removeDependencies(File file) {
+  final lines = file.readAsLinesSync();
+
+  // Проверяем, есть ли зависимости
+  final hasDependencies = lines.any((line) => 
+    line.contains('play-services-location:21.3.0') ||
+    line.contains('installreferrer:2.2')
+  );
+
+  if (!hasDependencies) {
+    return false; // Нечего удалять
+  }
+
+  final newLines = <String>[];
+  bool inDependenciesBlock = false;
+  int dependenciesBlockStart = -1;
+  int dependenciesBlockEnd = -1;
+  bool foundDependencies = false;
+
+  // Находим блок dependencies
+  for (int i = 0; i < lines.length; i++) {
+    final line = lines[i];
+    final trimmed = line.trim();
+
+    if (trimmed.startsWith('dependencies') && trimmed.contains('{')) {
+      inDependenciesBlock = true;
+      dependenciesBlockStart = i;
+      continue;
+    }
+
+    if (inDependenciesBlock && trimmed == '}') {
+      dependenciesBlockEnd = i;
+      break;
+    }
+  }
+
+  if (dependenciesBlockStart == -1) {
+    return false; // Блок dependencies не найден
+  }
+
+  // Обрабатываем строки - удаляем только наши зависимости
+  for (int i = 0; i < lines.length; i++) {
+    final line = lines[i];
+    final trimmed = line.trim();
+
+    // Если это внутри блока dependencies
+    if (i > dependenciesBlockStart && i < dependenciesBlockEnd) {
+      // Пропускаем комментарий
+      if (trimmed.contains('// Зависимости для gms_services:') ||
+          trimmed.contains('//Зависимости для gms_services:')) {
+        foundDependencies = true;
+        continue;
+      }
+
+      // Пропускаем зависимости
+      if (trimmed.contains('play-services-location:21.3.0') ||
+          trimmed.contains('installreferrer:2.2')) {
+        foundDependencies = true;
+        continue;
+      }
+    }
+
+    // Оставляем все остальные строки
+    newLines.add(line);
+  }
+
+  // Проверяем, остался ли блок dependencies пустым (только наши зависимости)
+  if (dependenciesBlockStart != -1 && dependenciesBlockEnd != -1 && foundDependencies) {
+    bool isEmpty = true;
+    for (int i = dependenciesBlockStart + 1; i < dependenciesBlockEnd; i++) {
+      final line = lines[i];
+      final trimmed = line.trim();
+      if (trimmed.isNotEmpty && 
+          !trimmed.contains('// Зависимости для gms_services:') &&
+          !trimmed.contains('play-services-location:21.3.0') &&
+          !trimmed.contains('installreferrer:2.2')) {
+        isEmpty = false;
+        break;
+      }
+    }
+
+    // Если блок пуст (только наши зависимости), удаляем его полностью
+    if (isEmpty) {
+      newLines.clear();
+      for (int i = 0; i < lines.length; i++) {
+        if (i < dependenciesBlockStart || i > dependenciesBlockEnd) {
+          newLines.add(lines[i]);
+        }
+      }
+    }
+  }
+
+  // Удаляем лишние пустые строки в конце
+  while (newLines.isNotEmpty && newLines.last.trim().isEmpty) {
+    newLines.removeLast();
+  }
+
+  if (newLines.length != lines.length || foundDependencies) {
     file.writeAsStringSync(newLines.join('\n') + '\n');
     return true;
   }
