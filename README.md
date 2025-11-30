@@ -32,6 +32,18 @@ dart run gms_services:setup
 1. Добавьте файл `google-services.json` в папку `android/app/` (если его еще нет)
 2. Пересоберите проект: `flutter clean && flutter pub get`
 
+### Удаление настроек
+
+Если необходимо удалить настройки Google Services из проекта:
+
+```bash
+dart run gms_services:cleanup
+```
+
+Скрипт автоматически:
+- ✅ Удалит Google Services и Firebase Crashlytics плагины из `android/settings.gradle.kts`
+- ✅ Удалит применение плагинов из `android/app/build.gradle.kts`
+
 ### Используемые версии
 
 Плагин автоматически настроит следующие версии:
