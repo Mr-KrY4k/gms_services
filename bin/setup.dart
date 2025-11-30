@@ -11,8 +11,6 @@ import 'dart:io';
 ///
 /// Использование:
 ///   dart run gms_services:setup
-///   или
-///   dart run bin/setup_android.dart
 
 const String googleServicesPlugin =
     'id("com.google.gms.google-services") version "4.4.2" apply false';

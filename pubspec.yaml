@@ -2,9 +2,6 @@ name: gms_services
 description: "A new Flutter plugin project."
 version: 0.0.1
 
-executables:
-  setup: setup_android
-
 environment:
   sdk: ^3.10.1
   flutter: '>=3.3.0'
