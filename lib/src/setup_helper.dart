@@ -1,5 +1,5 @@
 /// Внутренний модуль с общей логикой для настройки и очистки Android проекта.
-library gms_services_setup_helper;
+library;
 
 import 'dart:io';
 
@@ -130,7 +130,7 @@ Directory? findProjectRoot([String? startPath]) {
           openBraces -
           closeBraces -
           1; // -1 потому что уже посчитали начальную {
-      if (blockDepth == 0 && blockStart != null) {
+      if (blockDepth == 0) {
         return (blockStart, i);
       }
       continue;
@@ -197,7 +197,7 @@ bool updateSettingsGradle(File file) {
       newLines.add(lines[i]);
     }
 
-    file.writeAsStringSync(newLines.join('\n') + '\n');
+    file.writeAsStringSync('${newLines.join('\n')}\n');
     return true;
   } else {
     // Если блока plugins нет, создаем его
@@ -227,7 +227,7 @@ bool updateSettingsGradle(File file) {
       newLines.add(lines[i]);
     }
 
-    file.writeAsStringSync(newLines.join('\n') + '\n');
+    file.writeAsStringSync('${newLines.join('\n')}\n');
     return true;
   }
 }
@@ -279,7 +279,7 @@ bool updateAppBuildGradle(File file) {
       newLines.add(lines[i]);
     }
 
-    file.writeAsStringSync(newLines.join('\n') + '\n');
+    file.writeAsStringSync('${newLines.join('\n')}\n');
     return true;
   } else {
     // Если блока plugins нет, добавляем в начало файла
@@ -292,7 +292,7 @@ bool updateAppBuildGradle(File file) {
     newLines.add('');
     newLines.addAll(lines);
 
-    file.writeAsStringSync(newLines.join('\n') + '\n');
+    file.writeAsStringSync('${newLines.join('\n')}\n');
     return true;
   }
 }
@@ -342,7 +342,7 @@ bool addDependencies(File file) {
       newLines.add(lines[i]);
     }
 
-    file.writeAsStringSync(newLines.join('\n') + '\n');
+    file.writeAsStringSync('${newLines.join('\n')}\n');
     return true;
   } else {
     // Блока dependencies нет, создаем его после блока flutter
@@ -366,7 +366,7 @@ bool addDependencies(File file) {
       }
     }
 
-    file.writeAsStringSync(newLines.join('\n') + '\n');
+    file.writeAsStringSync('${newLines.join('\n')}\n');
     return true;
   }
 }
@@ -414,7 +414,7 @@ bool updateAndroidManifest(File file) {
     }
   }
 
-  file.writeAsStringSync(newLines.join('\n') + '\n');
+  file.writeAsStringSync('${newLines.join('\n')}\n');
   return true;
 }
 
@@ -505,7 +505,7 @@ bool removeFromSettingsGradle(File file) {
   }
 
   if (foundChanges) {
-    file.writeAsStringSync(newLines.join('\n') + '\n');
+    file.writeAsStringSync('${newLines.join('\n')}\n');
     return true;
   }
 
@@ -600,7 +600,7 @@ bool removeFromAppBuildGradle(File file) {
   }
 
   if (foundChanges) {
-    file.writeAsStringSync(newLines.join('\n') + '\n');
+    file.writeAsStringSync('${newLines.join('\n')}\n');
     return true;
   }
 
@@ -701,7 +701,7 @@ bool removeDependencies(File file) {
   }
 
   if (foundChanges) {
-    file.writeAsStringSync(newLines.join('\n') + '\n');
+    file.writeAsStringSync('${newLines.join('\n')}\n');
     return true;
   }
 
@@ -738,7 +738,7 @@ bool removeFromAndroidManifest(File file) {
   }
 
   if (found) {
-    file.writeAsStringSync(newLines.join('\n') + '\n');
+    file.writeAsStringSync('${newLines.join('\n')}\n');
     return true;
   }
 
