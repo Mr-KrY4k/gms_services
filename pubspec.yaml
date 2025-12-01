@@ -18,6 +18,8 @@ dependencies:
 
   logger: ^2.6.2
 
+  hive_ce: ^2.15.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
