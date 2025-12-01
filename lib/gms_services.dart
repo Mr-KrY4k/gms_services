@@ -1,3 +1,4 @@
+import 'adapters/advertising_id/advertising_id.dart';
 import 'adapters/analytics/analytics.dart';
 import 'adapters/messaging/messaging.dart';
 import 'adapters/remote_config/remote_config.dart';
@@ -207,4 +208,7 @@ final class GmsServices {
 
   /// Получает экземпляр Messaging.
   Messaging get messaging => Messaging.instance;
+
+  /// Получает адаптер Advertising ID.
+  AdvertisingIdAdapter get advertisingId => AdvertisingIdAdapter.instance;
 }
