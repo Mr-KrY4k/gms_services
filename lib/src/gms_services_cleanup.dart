@@ -55,24 +55,26 @@ Future<SetupResult> cleanupGmsServices({String? projectRoot}) async {
     );
   }
 
-  // Удаление из settings.gradle.kts
-  final settingsFile = File('${androidDir.path}/settings.gradle.kts');
-  if (settingsFile.existsSync()) {
-    messages.add('📝 Обновление settings.gradle.kts...');
+  // Удаление из settings.gradle (поддерживает .kts и .gradle)
+  final settingsFile = helper.findSettingsGradleFile(androidDir);
+  if (settingsFile != null) {
+    final fileName = settingsFile.path.split('/').last;
+    messages.add('📝 Обновление $fileName...');
     if (helper.removeFromSettingsGradle(settingsFile)) {
       changesMade = true;
-      messages.add('✅ Плагины удалены из settings.gradle.kts.');
+      messages.add('✅ Плагины удалены из $fileName.');
     } else {
-      messages.add('ℹ️  Плагины не найдены в settings.gradle.kts.');
+      messages.add('ℹ️  Плагины не найдены в $fileName.');
     }
   } else {
-    messages.add('⚠️  Файл settings.gradle.kts не найден. Пропуск...');
+    messages.add('⚠️  Файл settings.gradle(.kts) не найден. Пропуск...');
   }
 
-  // Удаление из app/build.gradle.kts
-  final appBuildFile = File('${androidDir.path}/app/build.gradle.kts');
-  if (appBuildFile.existsSync()) {
-    messages.add('📝 Обновление app/build.gradle.kts...');
+  // Удаление из app/build.gradle (поддерживает .kts и .gradle)
+  final appBuildFile = helper.findAppBuildGradleFile(androidDir);
+  if (appBuildFile != null) {
+    final fileName = appBuildFile.path.split('/').last;
+    messages.add('📝 Обновление $fileName...');
     bool pluginsRemoved = false;
     bool dependenciesRemoved = false;
 
@@ -87,12 +89,12 @@ Future<SetupResult> cleanupGmsServices({String? projectRoot}) async {
     }
 
     if (pluginsRemoved || dependenciesRemoved) {
-      messages.add('✅ Настройки удалены из app/build.gradle.kts.');
+      messages.add('✅ Настройки удалены из $fileName.');
     } else {
-      messages.add('ℹ️  Настройки не найдены в app/build.gradle.kts.');
+      messages.add('ℹ️  Настройки не найдены в $fileName.');
     }
   } else {
-    messages.add('⚠️  Файл app/build.gradle.kts не найден. Пропуск...');
+    messages.add('⚠️  Файл app/build.gradle(.kts) не найден. Пропуск...');
   }
 
   // Удаление из AndroidManifest.xml

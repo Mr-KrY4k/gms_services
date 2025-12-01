@@ -55,26 +55,26 @@ Future<SetupResult> setupGmsServices({String? projectRoot}) async {
     );
   }
 
-  // Настройка settings.gradle.kts
-  final settingsFile = File('${androidDir.path}/settings.gradle.kts');
-  if (settingsFile.existsSync()) {
-    messages.add('📝 Обновление settings.gradle.kts...');
+  // Настройка settings.gradle (поддерживает .kts и .gradle)
+  final settingsFile = helper.findSettingsGradleFile(androidDir);
+  if (settingsFile != null) {
+    final fileName = settingsFile.path.split('/').last;
+    messages.add('📝 Обновление $fileName...');
     if (helper.updateSettingsGradle(settingsFile)) {
       changesMade = true;
-      messages.add('✅ settings.gradle.kts обновлен успешно.');
+      messages.add('✅ $fileName обновлен успешно.');
     } else {
-      messages.add(
-        'ℹ️  settings.gradle.kts уже содержит необходимые настройки.',
-      );
+      messages.add('ℹ️  $fileName уже содержит необходимые настройки.');
     }
   } else {
-    messages.add('⚠️  Файл settings.gradle.kts не найден. Пропуск...');
+    messages.add('⚠️  Файл settings.gradle(.kts) не найден. Пропуск...');
   }
 
-  // Настройка app/build.gradle.kts
-  final appBuildFile = File('${androidDir.path}/app/build.gradle.kts');
-  if (appBuildFile.existsSync()) {
-    messages.add('📝 Обновление app/build.gradle.kts...');
+  // Настройка app/build.gradle (поддерживает .kts и .gradle)
+  final appBuildFile = helper.findAppBuildGradleFile(androidDir);
+  if (appBuildFile != null) {
+    final fileName = appBuildFile.path.split('/').last;
+    messages.add('📝 Обновление $fileName...');
     bool pluginsUpdated = false;
     bool dependenciesUpdated = false;
 
@@ -89,14 +89,12 @@ Future<SetupResult> setupGmsServices({String? projectRoot}) async {
     }
 
     if (pluginsUpdated || dependenciesUpdated) {
-      messages.add('✅ app/build.gradle.kts обновлен успешно.');
+      messages.add('✅ $fileName обновлен успешно.');
     } else {
-      messages.add(
-        'ℹ️  app/build.gradle.kts уже содержит необходимые настройки.',
-      );
+      messages.add('ℹ️  $fileName уже содержит необходимые настройки.');
     }
   } else {
-    messages.add('⚠️  Файл app/build.gradle.kts не найден. Пропуск...');
+    messages.add('⚠️  Файл app/build.gradle(.kts) не найден. Пропуск...');
   }
 
   // Настройка AndroidManifest.xml

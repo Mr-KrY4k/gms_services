@@ -14,19 +14,79 @@ class SetupResult {
   SetupResult({required this.changesMade, required this.messages});
 }
 
-/// Константы для плагинов и зависимостей
-const String googleServicesPlugin =
+/// Тип синтаксиса Gradle файла
+enum GradleSyntaxType {
+  kotlinDsl, // .gradle.kts
+  groovy, // .gradle
+}
+
+/// Константы для плагинов и зависимостей (Kotlin DSL)
+const String googleServicesPluginKts =
     'id("com.google.gms.google-services") version "4.4.2" apply false';
-const String crashlyticsPlugin =
+const String crashlyticsPluginKts =
     'id("com.google.firebase.crashlytics") version "3.0.2" apply false';
-const String googleServicesApply = 'id("com.google.gms.google-services")';
-const String crashlyticsApply = 'id("com.google.firebase.crashlytics")';
-const String playServicesLocation =
+const String googleServicesApplyKts = 'id("com.google.gms.google-services")';
+const String crashlyticsApplyKts = 'id("com.google.firebase.crashlytics")';
+const String playServicesLocationKts =
     'implementation("com.google.android.gms:play-services-location:21.3.0")';
-const String installReferrer =
+const String installReferrerKts =
     'implementation("com.android.installreferrer:installreferrer:2.2")';
+
+/// Константы для плагинов и зависимостей (Groovy)
+// Для settings.gradle - используется plugins блок (как в Kotlin DSL)
+const String googleServicesPluginGroovy =
+    "id 'com.google.gms.google-services' version '4.4.2' apply false";
+const String crashlyticsPluginGroovy =
+    "id 'com.google.firebase.crashlytics' version '3.0.2' apply false";
+// Для build.gradle - используется apply plugin (старый синтаксис) или plugins блок
+const String googleServicesApplyGroovy =
+    "apply plugin: 'com.google.gms.google-services'";
+const String crashlyticsApplyGroovy =
+    "apply plugin: 'com.google.firebase.crashlytics'";
+const String playServicesLocationGroovy =
+    "implementation 'com.google.android.gms:play-services-location:21.3.0'";
+const String installReferrerGroovy =
+    "implementation 'com.android.installreferrer:installreferrer:2.2'";
 const String firebaseNotificationIcon =
     '<meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/firebase_icon_push"/>';
+
+/// Определяет тип синтаксиса Gradle файла по расширению
+GradleSyntaxType _getGradleSyntaxType(File file) {
+  final path = file.path;
+  if (path.endsWith('.gradle.kts')) {
+    return GradleSyntaxType.kotlinDsl;
+  } else if (path.endsWith('.gradle')) {
+    return GradleSyntaxType.groovy;
+  }
+  // По умолчанию считаем Kotlin DSL
+  return GradleSyntaxType.kotlinDsl;
+}
+
+/// Находит файл settings.gradle (проверяет оба варианта: .kts и .gradle)
+File? findSettingsGradleFile(Directory androidDir) {
+  final ktsFile = File('${androidDir.path}/settings.gradle.kts');
+  if (ktsFile.existsSync()) {
+    return ktsFile;
+  }
+  final gradleFile = File('${androidDir.path}/settings.gradle');
+  if (gradleFile.existsSync()) {
+    return gradleFile;
+  }
+  return null;
+}
+
+/// Находит файл app/build.gradle (проверяет оба варианта: .kts и .gradle)
+File? findAppBuildGradleFile(Directory androidDir) {
+  final ktsFile = File('${androidDir.path}/app/build.gradle.kts');
+  if (ktsFile.existsSync()) {
+    return ktsFile;
+  }
+  final gradleFile = File('${androidDir.path}/app/build.gradle');
+  if (gradleFile.existsSync()) {
+    return gradleFile;
+  }
+  return null;
+}
 
 /// Находит корневую директорию Flutter проекта
 Directory? findProjectRoot([String? startPath]) {
@@ -70,8 +130,8 @@ Directory? findProjectRoot([String? startPath]) {
           openBraces -
           closeBraces -
           1; // -1 потому что уже посчитали начальную {
-      if (blockDepth == 0) {
-        return (blockStart!, i);
+      if (blockDepth == 0 && blockStart != null) {
+        return (blockStart, i);
       }
       continue;
     }
@@ -92,9 +152,22 @@ Directory? findProjectRoot([String? startPath]) {
   return null;
 }
 
-/// Обновляет settings.gradle.kts, добавляя плагины Google Services
+/// Обновляет settings.gradle, добавляя плагины Google Services (поддерживает .kts и .gradle)
 bool updateSettingsGradle(File file) {
   final lines = file.readAsLinesSync();
+  final syntaxType = _getGradleSyntaxType(file);
+
+  // Определяем константы в зависимости от типа синтаксиса
+  final String googleServicesPlugin;
+  final String crashlyticsPlugin;
+
+  if (syntaxType == GradleSyntaxType.kotlinDsl) {
+    googleServicesPlugin = googleServicesPluginKts;
+    crashlyticsPlugin = crashlyticsPluginKts;
+  } else {
+    googleServicesPlugin = googleServicesPluginGroovy;
+    crashlyticsPlugin = crashlyticsPluginGroovy;
+  }
 
   // Проверяем, есть ли уже плагины
   final hasPlugins = lines.any(
@@ -131,7 +204,8 @@ bool updateSettingsGradle(File file) {
     // Ищем место для вставки (перед include или в конец)
     int insertIndex = lines.length;
     for (int i = 0; i < lines.length; i++) {
-      if (lines[i].trim().startsWith('include(')) {
+      if (lines[i].trim().startsWith('include(') ||
+          lines[i].trim().startsWith('include ')) {
         insertIndex = i;
         break;
       }
@@ -158,9 +232,22 @@ bool updateSettingsGradle(File file) {
   }
 }
 
-/// Обновляет app/build.gradle.kts, добавляя применение плагинов
+/// Обновляет app/build.gradle, добавляя применение плагинов (поддерживает .kts и .gradle)
 bool updateAppBuildGradle(File file) {
   final lines = file.readAsLinesSync();
+  final syntaxType = _getGradleSyntaxType(file);
+
+  // Определяем константы в зависимости от типа синтаксиса
+  final String googleServicesApply;
+  final String crashlyticsApply;
+
+  if (syntaxType == GradleSyntaxType.kotlinDsl) {
+    googleServicesApply = googleServicesApplyKts;
+    crashlyticsApply = crashlyticsApplyKts;
+  } else {
+    googleServicesApply = googleServicesApplyGroovy;
+    crashlyticsApply = crashlyticsApplyGroovy;
+  }
 
   // Проверяем, есть ли уже применение плагинов
   final hasPlugins = lines.any(
@@ -210,9 +297,22 @@ bool updateAppBuildGradle(File file) {
   }
 }
 
-/// Добавляет зависимости в app/build.gradle.kts
+/// Добавляет зависимости в app/build.gradle (поддерживает .kts и .gradle)
 bool addDependencies(File file) {
   final lines = file.readAsLinesSync();
+  final syntaxType = _getGradleSyntaxType(file);
+
+  // Определяем константы в зависимости от типа синтаксиса
+  final String playServicesLocation;
+  final String installReferrer;
+
+  if (syntaxType == GradleSyntaxType.kotlinDsl) {
+    playServicesLocation = playServicesLocationKts;
+    installReferrer = installReferrerKts;
+  } else {
+    playServicesLocation = playServicesLocationGroovy;
+    installReferrer = installReferrerGroovy;
+  }
 
   // Проверяем, есть ли уже зависимости
   final hasDependencies = lines.any(
