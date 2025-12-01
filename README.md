@@ -92,11 +92,150 @@ final result = await setupGmsServices(
 
 ## Использование
 
+### Инициализация всех сервисов
+
+Главный сервис `GmsServices` предоставляет единую точку входа для инициализации всех адаптеров:
+
 ```dart
 import 'package:gms_services/gms_services.dart';
 
-// Ваш код здесь
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Инициализация Firebase Core (обязательно перед использованием плагина)
+  await Firebase.initializeApp();
+  
+  // Инициализация всех GMS сервисов
+  final result = await GmsServices.instance.init(
+    onPushBlocked: () {
+      // Колбек вызывается при блокировке push-уведомлений
+      print('Пользователь заблокировал уведомления');
+    },
+  );
+  
+  if (result.success) {
+    print('Все сервисы успешно инициализированы');
+  } else {
+    print('Ошибки при инициализации: ${result.allErrors}');
+    // Проверяем статус каждого сервиса
+    print('Analytics: ${result.analytics}');
+    print('Remote Config: ${result.remoteConfig}');
+    print('Messaging: ${result.messaging}');
+  }
+  
+  runApp(MyApp());
+}
 ```
+
+### Работа с Analytics
+
+```dart
+import 'package:gms_services/gms_services.dart';
+
+// Получение идентификатора экземпляра приложения
+final instanceId = await GmsServices.instance.analytics.appInstanceId;
+print('App Instance ID: $instanceId');
+
+// Или напрямую через адаптер
+final instanceId = await Analytics.instance.appInstanceId;
+```
+
+### Работа с Remote Config
+
+```dart
+import 'package:gms_services/gms_services.dart';
+
+// Получение значений из Remote Config
+final value = GmsServices.instance.remoteConfig.getString('my_key');
+final intValue = GmsServices.instance.remoteConfig.getInt('my_int_key');
+final boolValue = GmsServices.instance.remoteConfig.getBool('my_bool_key');
+
+// Получение всех значений
+final allValues = GmsServices.instance.remoteConfig.getAll();
+
+// Или напрямую через адаптер
+final value = RemoteConfig.instance.getString('my_key');
+```
+
+### Работа с Messaging (Push-уведомления)
+
+```dart
+import 'package:gms_services/gms_services.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+
+// Получение FCM токена
+final token = await GmsServices.instance.messaging.fcmToken;
+print('FCM Token: $token');
+
+// Подписка на входящие сообщения
+GmsServices.instance.messaging.onMessageReceived.listen((RemoteMessage message) {
+  print('Получено сообщение: ${message.messageId}');
+  print('Заголовок: ${message.notification?.title}');
+  print('Текст: ${message.notification?.body}');
+});
+
+// Подписка на изменение статуса уведомлений
+GmsServices.instance.messaging.onNotificationStatusChanged.listen((status) {
+  print('Статус уведомлений: $status');
+});
+
+// Получение всех сохраненных сообщений
+final messages = GmsServices.instance.messaging.messages;
+
+// Проверка, было ли приложение открыто через пуш
+final wasOpenedByPush = await GmsServices.instance.messaging.wasAppOpenedByPush();
+
+// Получение последнего открытого пуша в пределах 24 часов
+final lastPush = await GmsServices.instance.messaging.getLastOpenedPushWithin24Hours();
+if (lastPush != null) {
+  print('Последний пуш: ${lastPush.messageId}');
+}
+
+// Отметить последний пуш как просмотренный
+await GmsServices.instance.messaging.markLastOpenedPushAsViewed();
+```
+
+### Работа с Storage
+
+Плагин использует Hive для хранения данных. Вы можете создать собственные экземпляры Storage для хранения любых данных:
+
+```dart
+import 'package:gms_services/src/storage/storage.dart';
+
+// Создание storage для ваших данных
+final storage = Storage('my_data');
+
+// Инициализация
+await storage.init();
+
+// Сохранение данных
+await storage.save('key1', {'title': 'Заголовок', 'value': 123});
+
+// Получение данных
+final data = storage.get('key1');
+print(data); // {'title': 'Заголовок', 'value': 123}
+
+// Получение всех данных
+final allData = storage.getAll();
+
+// Удаление данных
+await storage.delete('key1');
+
+// Очистка всех данных
+await storage.clear();
+
+// Количество записей
+final count = storage.count;
+```
+
+## Доступные адаптеры
+
+Плагин предоставляет следующие адаптеры:
+
+- **Analytics** - работа с Firebase Analytics
+- **RemoteConfig** - работа с Firebase Remote Config
+- **Messaging** - работа с Firebase Cloud Messaging (push-уведомления)
+- **Storage** - универсальное хранилище данных на основе Hive
 
 ## Лицензия
 
