@@ -1,5 +1,5 @@
 /// Модуль для удаления настроек Android проекта для плагина gms_services.
-library gms_services_cleanup;
+library;
 
 import 'dart:io';
 import 'setup_helper.dart' as helper;

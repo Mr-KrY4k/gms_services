@@ -1,5 +1,5 @@
 /// Модуль для настройки Android проекта для плагина gms_services.
-library gms_services_setup;
+library;
 
 import 'dart:io';
 import 'setup_helper.dart' as helper;
