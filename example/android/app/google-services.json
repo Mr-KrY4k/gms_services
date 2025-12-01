@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "470778967259",
+    "project_id": "id557-56dc9",
+    "storage_bucket": "id557-56dc9.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:470778967259:android:1c123ee4d9cced502008fe",
+        "android_client_info": {
+          "package_name": "com.zaim.ru.good.cash"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBf2vVh0TfP-N6pWs-LCuY9AwJUUUiSdYg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

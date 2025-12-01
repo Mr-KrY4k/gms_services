@@ -1,3 +1,5 @@
+import 'package:firebase_core/firebase_core.dart';
+
 import 'adapters/advertising_id/advertising_id.dart';
 import 'adapters/analytics/analytics.dart';
 import 'adapters/messaging/messaging.dart';
@@ -101,7 +103,7 @@ final class GmsServices {
     try {
       _isPending = true;
       GmsLogger.debug('GmsServices: начало инициализации');
-
+      await Firebase.initializeApp();
       // Устанавливаем колбек для Messaging, если передан
       if (onPushBlocked != null) {
         Messaging.instance.setOnPushBlockedCallback(onPushBlocked);
