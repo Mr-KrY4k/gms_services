@@ -43,184 +43,232 @@ Directory? findProjectRoot([String? startPath]) {
   return null;
 }
 
+/// Находит границы блока в файле (например, plugins { ... })
+/// Возвращает (startIndex, endIndex) или null, если блок не найден
+(int, int)? _findBlockBounds(
+  List<String> lines,
+  String blockName,
+  int startFrom,
+) {
+  int? blockStart;
+  int blockDepth = 0;
+  bool inBlock = false;
+
+  for (int i = startFrom; i < lines.length; i++) {
+    final line = lines[i];
+    final trimmed = line.trim();
+
+    // Находим начало блока (например, "plugins {" или "plugins{")
+    if (!inBlock && trimmed.startsWith(blockName) && trimmed.contains('{')) {
+      blockStart = i;
+      inBlock = true;
+      blockDepth = 1;
+      // Проверяем, не закрылся ли блок в той же строке
+      final openBraces = trimmed.split('{').length - 1;
+      final closeBraces = trimmed.split('}').length - 1;
+      blockDepth +=
+          openBraces -
+          closeBraces -
+          1; // -1 потому что уже посчитали начальную {
+      if (blockDepth == 0) {
+        return (blockStart!, i);
+      }
+      continue;
+    }
+
+    if (inBlock) {
+      // Считаем вложенные скобки в строке
+      final openBraces = line.split('{').length - 1;
+      final closeBraces = line.split('}').length - 1;
+      blockDepth += openBraces - closeBraces;
+
+      // Если блок закрылся
+      if (blockDepth == 0) {
+        return (blockStart!, i);
+      }
+    }
+  }
+
+  return null;
+}
+
 /// Обновляет settings.gradle.kts, добавляя плагины Google Services
 bool updateSettingsGradle(File file) {
-  final content = file.readAsStringSync();
+  final lines = file.readAsLinesSync();
 
   // Проверяем, есть ли уже плагины
-  if (content.contains('com.google.gms.google-services')) {
+  final hasPlugins = lines.any(
+    (line) =>
+        line.contains('com.google.gms.google-services') ||
+        line.contains('com.google.firebase.crashlytics'),
+  );
+
+  if (hasPlugins) {
     return false; // Уже настроено
   }
 
-  // Ищем блок plugins (многострочный)
-  final pluginsBlockRegex = RegExp(
-    r'plugins\s*\{[^}]*\}',
-    multiLine: true,
-    dotAll: true,
-  );
+  // Ищем блок plugins
+  final blockBounds = _findBlockBounds(lines, 'plugins', 0);
+  if (blockBounds != null) {
+    final (blockStart, blockEnd) = blockBounds;
 
-  final match = pluginsBlockRegex.firstMatch(content);
-  if (match != null) {
-    final pluginsBlock = match.group(0)!;
-
-    // Проверяем, есть ли уже нужные плагины в блоке
-    if (pluginsBlock.contains('com.google.gms.google-services')) {
-      return false;
+    // Добавляем плагины перед закрывающей скобкой
+    final newLines = <String>[];
+    for (int i = 0; i < lines.length; i++) {
+      if (i == blockEnd) {
+        // Вставляем перед закрывающей скобкой
+        newLines.add('    // Плагины для gms_services:');
+        newLines.add('    $googleServicesPlugin');
+        newLines.add('    $crashlyticsPlugin');
+      }
+      newLines.add(lines[i]);
     }
 
-    // Добавляем плагины перед закрывающей скобкой блока
-    final updatedPluginsBlock = pluginsBlock.replaceFirst(
-      '}',
-      '    // Плагины для gms_services:\n    $googleServicesPlugin\n    $crashlyticsPlugin\n}',
-    );
-
-    final newContent = content.replaceFirst(pluginsBlock, updatedPluginsBlock);
-    file.writeAsStringSync(newContent);
+    file.writeAsStringSync(newLines.join('\n') + '\n');
     return true;
   } else {
-    // Если блока plugins нет, добавляем после pluginManagement
-    final pluginManagementEnd = content.indexOf('include(');
-    if (pluginManagementEnd == -1) {
-      // Если нет include, добавляем в конец
-      final newContent =
-          '$content\n\nplugins {\n    // Плагины для gms_services:\n    $googleServicesPlugin\n    $crashlyticsPlugin\n}\n';
-      file.writeAsStringSync(newContent);
-      return true;
-    } else {
-      // Вставляем перед include
-      final before = content.substring(0, pluginManagementEnd);
-      final after = content.substring(pluginManagementEnd);
-      final newContent =
-          '$before\nplugins {\n    // Плагины для gms_services:\n    $googleServicesPlugin\n    $crashlyticsPlugin\n}\n\n$after';
-      file.writeAsStringSync(newContent);
-      return true;
+    // Если блока plugins нет, создаем его
+    // Ищем место для вставки (перед include или в конец)
+    int insertIndex = lines.length;
+    for (int i = 0; i < lines.length; i++) {
+      if (lines[i].trim().startsWith('include(')) {
+        insertIndex = i;
+        break;
+      }
     }
+
+    final newLines = <String>[];
+    for (int i = 0; i < lines.length; i++) {
+      if (i == insertIndex) {
+        newLines.add('');
+        newLines.add('plugins {');
+        newLines.add('    // Плагины для gms_services:');
+        newLines.add('    $googleServicesPlugin');
+        newLines.add('    $crashlyticsPlugin');
+        newLines.add('}');
+        if (insertIndex < lines.length) {
+          newLines.add('');
+        }
+      }
+      newLines.add(lines[i]);
+    }
+
+    file.writeAsStringSync(newLines.join('\n') + '\n');
+    return true;
   }
 }
 
 /// Обновляет app/build.gradle.kts, добавляя применение плагинов
 bool updateAppBuildGradle(File file) {
-  final content = file.readAsStringSync();
+  final lines = file.readAsLinesSync();
 
   // Проверяем, есть ли уже применение плагинов
-  if (content.contains(googleServicesApply)) {
+  final hasPlugins = lines.any(
+    (line) =>
+        (line.contains('com.google.gms.google-services') ||
+            line.contains('com.google.firebase.crashlytics')) &&
+        !line.contains('version') &&
+        !line.contains('apply false'),
+  );
+
+  if (hasPlugins) {
     return false; // Уже настроено
   }
 
-  // Ищем блок plugins (многострочный)
-  final pluginsBlockRegex = RegExp(
-    r'plugins\s*\{[^}]*\}',
-    multiLine: true,
-    dotAll: true,
-  );
-
-  final match = pluginsBlockRegex.firstMatch(content);
-  if (match != null) {
-    final pluginsBlock = match.group(0)!;
+  // Ищем блок plugins
+  final blockBounds = _findBlockBounds(lines, 'plugins', 0);
+  if (blockBounds != null) {
+    final (blockStart, blockEnd) = blockBounds;
 
     // Добавляем применение плагинов перед закрывающей скобкой
-    final updatedPluginsBlock = pluginsBlock.replaceFirst(
-      '}',
-      '    // Плагины для gms_services:\n    $googleServicesApply\n    $crashlyticsApply\n}',
-    );
+    final newLines = <String>[];
+    for (int i = 0; i < lines.length; i++) {
+      if (i == blockEnd) {
+        // Вставляем перед закрывающей скобкой
+        newLines.add('    // Плагины для gms_services:');
+        newLines.add('    $googleServicesApply');
+        newLines.add('    $crashlyticsApply');
+      }
+      newLines.add(lines[i]);
+    }
 
-    final newContent = content.replaceFirst(pluginsBlock, updatedPluginsBlock);
-    file.writeAsStringSync(newContent);
+    file.writeAsStringSync(newLines.join('\n') + '\n');
     return true;
   } else {
     // Если блока plugins нет, добавляем в начало файла
-    final newContent =
-        'plugins {\n    // Плагины для gms_services:\n    $googleServicesApply\n    $crashlyticsApply\n}\n\n$content';
-    file.writeAsStringSync(newContent);
+    final newLines = <String>[];
+    newLines.add('plugins {');
+    newLines.add('    // Плагины для gms_services:');
+    newLines.add('    $googleServicesApply');
+    newLines.add('    $crashlyticsApply');
+    newLines.add('}');
+    newLines.add('');
+    newLines.addAll(lines);
+
+    file.writeAsStringSync(newLines.join('\n') + '\n');
     return true;
   }
 }
 
 /// Добавляет зависимости в app/build.gradle.kts
 bool addDependencies(File file) {
-  final content = file.readAsStringSync();
+  final lines = file.readAsLinesSync();
 
   // Проверяем, есть ли уже зависимости
-  if (content.contains('play-services-location:21.3.0') &&
-      content.contains('installreferrer:2.2')) {
+  final hasDependencies = lines.any(
+    (line) =>
+        line.contains('play-services-location:21.3.0') ||
+        line.contains('installreferrer:2.2'),
+  );
+
+  if (hasDependencies) {
     return false; // Уже добавлено
   }
 
   // Ищем блок dependencies
-  final dependenciesBlockRegex = RegExp(
-    r'dependencies\s*\{[^}]*\}',
-    multiLine: true,
-    dotAll: true,
-  );
+  final blockBounds = _findBlockBounds(lines, 'dependencies', 0);
+  if (blockBounds != null) {
+    final (blockStart, blockEnd) = blockBounds;
 
-  final match = dependenciesBlockRegex.firstMatch(content);
-  if (match != null) {
-    // Блок dependencies существует
-    final dependenciesBlock = match.group(0)!;
-
-    // Проверяем, есть ли уже нужные зависимости в блоке
-    if (dependenciesBlock.contains('play-services-location:21.3.0') &&
-        dependenciesBlock.contains('installreferrer:2.2')) {
-      return false;
-    }
-
-    // Добавляем зависимости перед закрывающей скобкой блока
-    String dependenciesToAdd = '';
-    if (!dependenciesBlock.contains('play-services-location:21.3.0')) {
-      dependenciesToAdd +=
-          '    // Зависимости для gms_services:\n    $playServicesLocation\n';
-    }
-    if (!dependenciesBlock.contains('installreferrer:2.2')) {
-      if (!dependenciesToAdd.contains('// Зависимости для gms_services:')) {
-        dependenciesToAdd += '    // Зависимости для gms_services:\n';
+    // Добавляем зависимости перед закрывающей скобкой
+    final newLines = <String>[];
+    for (int i = 0; i < lines.length; i++) {
+      if (i == blockEnd) {
+        // Вставляем перед закрывающей скобкой
+        newLines.add('    // Зависимости для gms_services:');
+        newLines.add('    $playServicesLocation');
+        newLines.add('    $installReferrer');
       }
-      dependenciesToAdd += '    $installReferrer\n';
+      newLines.add(lines[i]);
     }
 
-    if (dependenciesToAdd.isNotEmpty) {
-      final updatedDependenciesBlock = dependenciesBlock.replaceFirst(
-        '}',
-        dependenciesToAdd + '}',
-      );
-
-      final newContent = content.replaceFirst(
-        dependenciesBlock,
-        updatedDependenciesBlock,
-      );
-      file.writeAsStringSync(newContent);
-      return true;
-    }
+    file.writeAsStringSync(newLines.join('\n') + '\n');
+    return true;
   } else {
     // Блока dependencies нет, создаем его после блока flutter
-    final flutterBlockRegex = RegExp(
-      r'flutter\s*\{[^}]*\}',
-      multiLine: true,
-      dotAll: true,
-    );
-
-    final flutterMatch = flutterBlockRegex.firstMatch(content);
-    if (flutterMatch != null) {
-      // Добавляем после блока flutter
-      final flutterBlock = flutterMatch.group(0)!;
-      final flutterBlockEnd =
-          content.indexOf(flutterBlock) + flutterBlock.length;
-      final before = content.substring(0, flutterBlockEnd);
-      final after = content.substring(flutterBlockEnd);
-
-      final newContent =
-          '$before\n\ndependencies {\n    // Зависимости для gms_services:\n    $playServicesLocation\n    $installReferrer\n}\n$after';
-      file.writeAsStringSync(newContent);
-      return true;
-    } else {
-      // Если блока flutter нет, добавляем в конец файла
-      final newContent =
-          '$content\n\ndependencies {\n    // Зависимости для gms_services:\n    $playServicesLocation\n    $installReferrer\n}\n';
-      file.writeAsStringSync(newContent);
-      return true;
+    int flutterBlockEnd = -1;
+    final flutterBlockBounds = _findBlockBounds(lines, 'flutter', 0);
+    if (flutterBlockBounds != null) {
+      flutterBlockEnd = flutterBlockBounds.$2;
     }
-  }
 
-  return false;
+    final newLines = <String>[];
+    for (int i = 0; i < lines.length; i++) {
+      newLines.add(lines[i]);
+      if (i == flutterBlockEnd ||
+          (flutterBlockEnd == -1 && i == lines.length - 1)) {
+        newLines.add('');
+        newLines.add('dependencies {');
+        newLines.add('    // Зависимости для gms_services:');
+        newLines.add('    $playServicesLocation');
+        newLines.add('    $installReferrer');
+        newLines.add('}');
+      }
+    }
+
+    file.writeAsStringSync(newLines.join('\n') + '\n');
+    return true;
+  }
 }
 
 /// Обновляет AndroidManifest.xml, добавляя настройку иконки уведомлений
@@ -285,8 +333,11 @@ bool removeFromSettingsGradle(File file) {
     return false; // Нечего удалять
   }
 
+  // Ищем блок plugins
+  final blockBounds = _findBlockBounds(lines, 'plugins', 0);
+
   final newLines = <String>[];
-  bool foundComment = false;
+  bool foundChanges = false;
 
   for (int i = 0; i < lines.length; i++) {
     final line = lines[i];
@@ -295,7 +346,7 @@ bool removeFromSettingsGradle(File file) {
     // Пропускаем комментарий
     if (trimmed.contains('// Плагины для gms_services:') ||
         trimmed.contains('//Плагины для gms_services:')) {
-      foundComment = true;
+      foundChanges = true;
       continue;
     }
 
@@ -303,10 +354,49 @@ bool removeFromSettingsGradle(File file) {
     if ((trimmed.contains('com.google.gms.google-services') ||
             trimmed.contains('com.google.firebase.crashlytics')) &&
         (trimmed.contains('apply false') || trimmed.contains('version'))) {
+      foundChanges = true;
       continue;
     }
 
     newLines.add(line);
+  }
+
+  // Проверяем, нужно ли удалить пустой блок plugins
+  if (blockBounds != null && foundChanges) {
+    final (blockStart, blockEnd) = blockBounds;
+
+    // Проверяем, остались ли в блоке только наши строки
+    bool hasOtherContent = false;
+    for (int i = blockStart + 1; i < blockEnd; i++) {
+      final trimmed = newLines[i].trim();
+      if (trimmed.isNotEmpty &&
+          !trimmed.contains('// Плагины для gms_services:') &&
+          !trimmed.contains('com.google.gms.google-services') &&
+          !trimmed.contains('com.google.firebase.crashlytics')) {
+        hasOtherContent = true;
+        break;
+      }
+    }
+
+    // Если блока plugins не осталось содержимого (только наши строки), удаляем весь блок
+    if (!hasOtherContent &&
+        blockStart < newLines.length &&
+        blockEnd < newLines.length) {
+      final finalLines = <String>[];
+      for (int i = 0; i < newLines.length; i++) {
+        if (i < blockStart || i > blockEnd) {
+          finalLines.add(newLines[i]);
+        }
+      }
+
+      // Удаляем лишние пустые строки
+      while (finalLines.isNotEmpty && finalLines.last.trim().isEmpty) {
+        finalLines.removeLast();
+      }
+
+      newLines.clear();
+      newLines.addAll(finalLines);
+    }
   }
 
   // Удаляем лишние пустые строки в конце
@@ -314,7 +404,7 @@ bool removeFromSettingsGradle(File file) {
     newLines.removeLast();
   }
 
-  if (newLines.length != lines.length || foundComment) {
+  if (foundChanges) {
     file.writeAsStringSync(newLines.join('\n') + '\n');
     return true;
   }
@@ -337,8 +427,11 @@ bool removeFromAppBuildGradle(File file) {
     return false; // Нечего удалять
   }
 
+  // Ищем блок plugins
+  final blockBounds = _findBlockBounds(lines, 'plugins', 0);
+
   final newLines = <String>[];
-  bool foundComment = false;
+  bool foundChanges = false;
 
   for (int i = 0; i < lines.length; i++) {
     final line = lines[i];
@@ -347,7 +440,7 @@ bool removeFromAppBuildGradle(File file) {
     // Пропускаем комментарий
     if (trimmed.contains('// Плагины для gms_services:') ||
         trimmed.contains('//Плагины для gms_services:')) {
-      foundComment = true;
+      foundChanges = true;
       continue;
     }
 
@@ -356,10 +449,49 @@ bool removeFromAppBuildGradle(File file) {
             trimmed.contains('com.google.firebase.crashlytics')) &&
         !trimmed.contains('version') &&
         !trimmed.contains('apply false')) {
+      foundChanges = true;
       continue;
     }
 
     newLines.add(line);
+  }
+
+  // Проверяем, нужно ли удалить пустой блок plugins
+  if (blockBounds != null && foundChanges) {
+    final (blockStart, blockEnd) = blockBounds;
+
+    // Проверяем, остались ли в блоке только наши строки
+    bool hasOtherContent = false;
+    for (int i = blockStart + 1; i < blockEnd && i < newLines.length; i++) {
+      final trimmed = newLines[i].trim();
+      if (trimmed.isNotEmpty &&
+          !trimmed.contains('// Плагины для gms_services:') &&
+          !trimmed.contains('com.google.gms.google-services') &&
+          !trimmed.contains('com.google.firebase.crashlytics')) {
+        hasOtherContent = true;
+        break;
+      }
+    }
+
+    // Если блока plugins не осталось содержимого, удаляем весь блок
+    if (!hasOtherContent &&
+        blockStart < newLines.length &&
+        blockEnd < newLines.length) {
+      final finalLines = <String>[];
+      for (int i = 0; i < newLines.length; i++) {
+        if (i < blockStart || i > blockEnd) {
+          finalLines.add(newLines[i]);
+        }
+      }
+
+      // Удаляем лишние пустые строки
+      while (finalLines.isNotEmpty && finalLines.last.trim().isEmpty) {
+        finalLines.removeLast();
+      }
+
+      newLines.clear();
+      newLines.addAll(finalLines);
+    }
   }
 
   // Удаляем лишние пустые строки в конце
@@ -367,7 +499,7 @@ bool removeFromAppBuildGradle(File file) {
     newLines.removeLast();
   }
 
-  if (newLines.length != lines.length || foundComment) {
+  if (foundChanges) {
     file.writeAsStringSync(newLines.join('\n') + '\n');
     return true;
   }
@@ -390,32 +522,15 @@ bool removeDependencies(File file) {
     return false; // Нечего удалять
   }
 
-  final newLines = <String>[];
-  bool inDependenciesBlock = false;
-  int dependenciesBlockStart = -1;
-  int dependenciesBlockEnd = -1;
-  bool foundDependencies = false;
-
-  // Находим блок dependencies
-  for (int i = 0; i < lines.length; i++) {
-    final line = lines[i];
-    final trimmed = line.trim();
-
-    if (trimmed.startsWith('dependencies') && trimmed.contains('{')) {
-      inDependenciesBlock = true;
-      dependenciesBlockStart = i;
-      continue;
-    }
-
-    if (inDependenciesBlock && trimmed == '}') {
-      dependenciesBlockEnd = i;
-      break;
-    }
-  }
-
-  if (dependenciesBlockStart == -1) {
+  // Ищем блок dependencies
+  final blockBounds = _findBlockBounds(lines, 'dependencies', 0);
+  if (blockBounds == null) {
     return false; // Блок dependencies не найден
   }
+
+  final (blockStart, blockEnd) = blockBounds;
+  final newLines = <String>[];
+  bool foundChanges = false;
 
   // Обрабатываем строки - удаляем только наши зависимости
   for (int i = 0; i < lines.length; i++) {
@@ -423,18 +538,18 @@ bool removeDependencies(File file) {
     final trimmed = line.trim();
 
     // Если это внутри блока dependencies
-    if (i > dependenciesBlockStart && i < dependenciesBlockEnd) {
+    if (i > blockStart && i < blockEnd) {
       // Пропускаем комментарий
       if (trimmed.contains('// Зависимости для gms_services:') ||
           trimmed.contains('//Зависимости для gms_services:')) {
-        foundDependencies = true;
+        foundChanges = true;
         continue;
       }
 
       // Пропускаем зависимости
       if (trimmed.contains('play-services-location:21.3.0') ||
           trimmed.contains('installreferrer:2.2')) {
-        foundDependencies = true;
+        foundChanges = true;
         continue;
       }
     }
@@ -444,29 +559,38 @@ bool removeDependencies(File file) {
   }
 
   // Проверяем, остался ли блок dependencies пустым (только наши зависимости)
-  if (dependenciesBlockStart != -1 &&
-      dependenciesBlockEnd != -1 &&
-      foundDependencies) {
-    bool isEmpty = true;
-    for (int i = dependenciesBlockStart + 1; i < dependenciesBlockEnd; i++) {
-      final line = lines[i];
-      final trimmed = line.trim();
-      if (trimmed.isNotEmpty &&
-          !trimmed.contains('// Зависимости для gms_services:') &&
-          !trimmed.contains('play-services-location:21.3.0') &&
-          !trimmed.contains('installreferrer:2.2')) {
-        isEmpty = false;
-        break;
-      }
-    }
+  if (foundChanges) {
+    // Находим блок dependencies в новом массиве после удаления
+    final newBlockBounds = _findBlockBounds(newLines, 'dependencies', 0);
+    if (newBlockBounds != null) {
+      final (newBlockStart, newBlockEnd) = newBlockBounds;
 
-    // Если блок пуст (только наши зависимости), удаляем его полностью
-    if (isEmpty) {
-      newLines.clear();
-      for (int i = 0; i < lines.length; i++) {
-        if (i < dependenciesBlockStart || i > dependenciesBlockEnd) {
-          newLines.add(lines[i]);
+      // Проверяем, пуст ли блок (содержит только пустые строки и комментарии)
+      bool hasContent = false;
+      for (int i = newBlockStart + 1; i < newBlockEnd; i++) {
+        final trimmed = newLines[i].trim();
+        if (trimmed.isNotEmpty && !trimmed.startsWith('//')) {
+          hasContent = true;
+          break;
         }
+      }
+
+      // Если блок пуст, удаляем его полностью
+      if (!hasContent) {
+        final finalLines = <String>[];
+        for (int i = 0; i < newLines.length; i++) {
+          if (i < newBlockStart || i > newBlockEnd) {
+            finalLines.add(newLines[i]);
+          }
+        }
+
+        // Удаляем лишние пустые строки
+        while (finalLines.isNotEmpty && finalLines.last.trim().isEmpty) {
+          finalLines.removeLast();
+        }
+
+        newLines.clear();
+        newLines.addAll(finalLines);
       }
     }
   }
@@ -476,7 +600,7 @@ bool removeDependencies(File file) {
     newLines.removeLast();
   }
 
-  if (newLines.length != lines.length || foundDependencies) {
+  if (foundChanges) {
     file.writeAsStringSync(newLines.join('\n') + '\n');
     return true;
   }
