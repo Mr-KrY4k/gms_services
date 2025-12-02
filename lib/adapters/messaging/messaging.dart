@@ -51,6 +51,9 @@ final class Messaging {
   /// Список всех полученных сообщений.
   final List<RemoteMessage> _messages = [];
 
+  /// Статус уведомлений.
+  AuthorizationStatus _notificationStatus = AuthorizationStatus.notDetermined;
+
   /// Флаг инициализации.
   bool _isInitialized = false;
 
@@ -67,6 +70,8 @@ final class Messaging {
 
   /// Стрим входящих сообщений.
   Stream<RemoteMessage> get onMessageReceived => _onMessageReceived.stream;
+
+  AuthorizationStatus get notificationStatus => _notificationStatus;
 
   /// Стрим изменения статуса уведомлений.
   Stream<AuthorizationStatus> get onNotificationStatusChanged =>
@@ -439,18 +444,19 @@ final class Messaging {
   Future<void> checkNotificationStatus() async {
     try {
       final settings = await _firebaseMessaging.getNotificationSettings();
-      final status = settings.authorizationStatus;
-      _onNotificationStatusChanged.add(status);
+      _notificationStatus = settings.authorizationStatus;
+      _onNotificationStatusChanged.add(_notificationStatus);
 
       // Вызываем колбек при блокировке (только если это не первый запрос)
       final firstRequest = _storage.get(
         MessagingStorageKeys.firstPushRequestPermission,
       );
-      if (firstRequest != null && status == AuthorizationStatus.denied) {
+      if (firstRequest != null &&
+          _notificationStatus == AuthorizationStatus.denied) {
         _onPushBlockedCallback?.call();
       }
 
-      GmsLogger.debug('Messaging: статус уведомлений: $status');
+      GmsLogger.debug('Messaging: статус уведомлений: $_notificationStatus');
     } catch (e, st) {
       GmsLogger.error(
         'Messaging: ошибка при проверке статуса уведомлений',
