@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:gms_services/gms_services.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await GmsServices.instance.init();
   runApp(const MyApp());
 }
 

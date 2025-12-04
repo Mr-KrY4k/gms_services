@@ -5,6 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import '../../consts.dart';
 import '../../src/logger.dart';
 import '../../src/storage/storage.dart';
+import '../../src/storage/preferences_storage.dart';
 import 'storage_keys.dart';
 
 /// Колбек для обработки события блокировки пушей.
@@ -32,8 +33,11 @@ final class Messaging {
   /// Экземпляр Firebase Messaging.
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
 
-  /// Storage для хранения сообщений.
+  /// Storage для хранения сообщений (Hive).
   late final Storage _storage = Storage(MessagingStorageKeys.pushMessagesBox);
+
+  /// Хранилище для флагов и простых значений (SharedPreferences).
+  final PreferencesStorage _prefs = PreferencesStorage.instance;
 
   /// Колбек для обработки блокировки пушей.
   OnPushBlockedCallback? _onPushBlockedCallback;
@@ -141,13 +145,16 @@ final class Messaging {
   /// Запрашивает разрешение на уведомления.
   Future<void> _requestPermission() async {
     try {
-      final firstRequest = _storage.get(
-        MessagingStorageKeys.firstPushRequestPermission,
-      );
-      if (firstRequest == null) {
-        await _storage.save(MessagingStorageKeys.firstPushRequestPermission, {
-          'value': false,
-        });
+      final alreadyRequested =
+          await _prefs.getBool(
+            MessagingStorageKeys.firstPushRequestPermission,
+          ) ??
+          false;
+      if (!alreadyRequested) {
+        await _prefs.setBool(
+          MessagingStorageKeys.firstPushRequestPermission,
+          true,
+        );
       }
 
       await _firebaseMessaging.requestPermission();
@@ -269,15 +276,12 @@ final class Messaging {
       final currentTime = DateTime.now().millisecondsSinceEpoch;
       final messageId = message.messageId ?? 'unknown';
 
-      await _storage.save(MessagingStorageKeys.lastPushOpenTime, {
-        'timestamp': currentTime,
-      });
-      await _storage.save(MessagingStorageKeys.lastPushOpenMessageId, {
-        'id': messageId,
-      });
-      await _storage.save(MessagingStorageKeys.lastPushOpenViewed, {
-        'viewed': false,
-      });
+      await _prefs.setInt(MessagingStorageKeys.lastPushOpenTime, currentTime);
+      await _prefs.setString(
+        MessagingStorageKeys.lastPushOpenMessageId,
+        messageId,
+      );
+      await _prefs.setBool(MessagingStorageKeys.lastPushOpenViewed, false);
 
       GmsLogger.debug(
         'Messaging: сохранены метаданные последнего пуша: time=$currentTime, id=$messageId',
@@ -294,9 +298,10 @@ final class Messaging {
   /// Получает время последнего открытия пуша.
   Future<DateTime?> _getLastPushOpenTime() async {
     try {
-      final data = _storage.get(MessagingStorageKeys.lastPushOpenTime);
-      if (data != null && data['timestamp'] != null) {
-        final timestamp = data['timestamp'] as int;
+      final timestamp = await _prefs.getInt(
+        MessagingStorageKeys.lastPushOpenTime,
+      );
+      if (timestamp != null) {
         final dateTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
         GmsLogger.debug('Messaging: время последнего открытия: $dateTime');
         return dateTime;
@@ -315,8 +320,10 @@ final class Messaging {
   /// Получает ID последнего открытого сообщения.
   Future<String?> _getLastPushOpenMessageId() async {
     try {
-      final data = _storage.get(MessagingStorageKeys.lastPushOpenMessageId);
-      return data?['id'] as String?;
+      final id = await _prefs.getString(
+        MessagingStorageKeys.lastPushOpenMessageId,
+      );
+      return id;
     } catch (e, st) {
       GmsLogger.error(
         'Messaging: ошибка при получении ID последнего сообщения',
@@ -336,8 +343,10 @@ final class Messaging {
   /// Проверяет, просмотрен ли последний открытый пуш.
   Future<bool> isLastOpenedPushViewed() async {
     try {
-      final data = _storage.get(MessagingStorageKeys.lastPushOpenViewed);
-      return data?['viewed'] == true;
+      final viewed = await _prefs.getBool(
+        MessagingStorageKeys.lastPushOpenViewed,
+      );
+      return viewed == true;
     } catch (e, st) {
       GmsLogger.error(
         'Messaging: ошибка при проверке статуса просмотра',
@@ -351,9 +360,7 @@ final class Messaging {
   /// Отмечает последний открытый пуш как просмотренный.
   Future<void> markLastOpenedPushAsViewed() async {
     try {
-      await _storage.save(MessagingStorageKeys.lastPushOpenViewed, {
-        'viewed': true,
-      });
+      await _prefs.setBool(MessagingStorageKeys.lastPushOpenViewed, true);
       final messageId = await _getLastPushOpenMessageId();
       GmsLogger.debug(
         'Messaging: последний пуш отмечен как просмотренный: id=${messageId ?? 'unknown'}',
@@ -448,10 +455,10 @@ final class Messaging {
       _onNotificationStatusChanged.add(_notificationStatus);
 
       // Вызываем колбек при блокировке (только если это не первый запрос)
-      final firstRequest = _storage.get(
+      final firstRequest = await _prefs.getBool(
         MessagingStorageKeys.firstPushRequestPermission,
       );
-      if (firstRequest != null &&
+      if (firstRequest == true &&
           _notificationStatus == AuthorizationStatus.denied) {
         _onPushBlockedCallback?.call();
       }

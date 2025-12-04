@@ -19,6 +19,7 @@ dependencies:
   logger: ^2.6.2
 
   hive_ce: ^2.15.1
+  shared_preferences: ^2.5.3
   path_provider: ^2.1.5
 
   advertising_id: ^2.7.1
