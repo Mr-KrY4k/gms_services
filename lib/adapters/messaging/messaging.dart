@@ -119,7 +119,7 @@ final class Messaging {
       final token = await _firebaseMessaging.getToken();
       final fcmToken = token ?? Consts.notAvailable;
       _fcmTokenCompleter.complete(fcmToken);
-      GmsLogger.debug('Messaging: FCM токен получен');
+      GmsLogger.debug('Messaging: FCM токен получен: $fcmToken');
 
       await _handleInitialMessage();
       await _setupMessageListeners();
