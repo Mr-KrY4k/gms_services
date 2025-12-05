@@ -8,9 +8,6 @@ import '../../src/storage/storage.dart';
 import '../../src/storage/preferences_storage.dart';
 import 'storage_keys.dart';
 
-/// Колбек для обработки события блокировки пушей.
-typedef OnPushBlockedCallback = void Function();
-
 /// Адаптер для работы с Firebase Messaging.
 ///
 /// Предоставляет упрощенный интерфейс для работы с push-уведомлениями,
@@ -18,9 +15,6 @@ typedef OnPushBlockedCallback = void Function();
 ///
 /// Пример использования:
 /// ```dart
-/// Messaging.instance.setOnPushBlockedCallback(() {
-/// Обработка блокировки пушей
-/// });
 /// await Messaging.instance.init();
 /// final token = await Messaging.instance.fcmToken;
 /// ```
@@ -38,9 +32,6 @@ final class Messaging {
 
   /// Хранилище для флагов и простых значений (SharedPreferences).
   final PreferencesStorage _prefs = PreferencesStorage.instance;
-
-  /// Колбек для обработки блокировки пушей.
-  OnPushBlockedCallback? _onPushBlockedCallback;
 
   /// Completer для получения FCM токена.
   final _fcmTokenCompleter = Completer<String>();
@@ -80,13 +71,6 @@ final class Messaging {
   /// Стрим изменения статуса уведомлений.
   Stream<AuthorizationStatus> get onNotificationStatusChanged =>
       _onNotificationStatusChanged.stream;
-
-  /// Устанавливает колбек для обработки блокировки пушей.
-  ///
-  /// [callback] - функция, которая будет вызвана при блокировке пушей.
-  void setOnPushBlockedCallback(OnPushBlockedCallback? callback) {
-    _onPushBlockedCallback = callback;
-  }
 
   /// Инициализирует Messaging.
   ///
@@ -159,7 +143,6 @@ final class Messaging {
 
       await _firebaseMessaging.requestPermission();
       GmsLogger.debug('Messaging: разрешение запрошено');
-      await checkNotificationStatus();
     } catch (e, st) {
       GmsLogger.error(
         'Messaging: ошибка при запросе разрешения',
@@ -454,16 +437,6 @@ final class Messaging {
       final settings = await _firebaseMessaging.getNotificationSettings();
       _notificationStatus = settings.authorizationStatus;
       _onNotificationStatusChanged.add(_notificationStatus);
-
-      // Вызываем колбек при блокировке (только если это не первый запрос)
-      final firstRequest = await _prefs.getBool(
-        MessagingStorageKeys.firstPushRequestPermission,
-      );
-      if (firstRequest == true &&
-          _notificationStatus == AuthorizationStatus.denied) {
-        _onPushBlockedCallback?.call();
-      }
-
       GmsLogger.debug('Messaging: статус уведомлений: $_notificationStatus');
     } catch (e, st) {
       GmsLogger.error(

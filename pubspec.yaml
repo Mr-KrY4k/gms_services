@@ -1,6 +1,6 @@
 name: gms_services
 description: Flutter плагин для работы с Google Mobile Services.
-version: 0.0.3
+version: 0.0.4
 
 environment:
   sdk: ^3.10.1

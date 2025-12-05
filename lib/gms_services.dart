@@ -73,11 +73,8 @@ final class GmsServices {
   /// Инициализирует Analytics, Remote Config и Messaging.
   /// Метод безопасен для повторного вызова - повторная инициализация
   /// будет пропущена, если уже выполняется или завершена.
-  ///
-  /// [onPushBlocked] - опциональный колбек для обработки блокировки пушей.
-  ///
   /// Возвращает [GmsServicesInitResult] с результатами инициализации каждого сервиса.
-  Future<GmsServicesInitResult> init({void Function()? onPushBlocked}) async {
+  Future<GmsServicesInitResult> init() async {
     if (_isInitialized) {
       GmsLogger.debug('GmsServices: уже инициализирован');
       return _createResult(
@@ -104,10 +101,6 @@ final class GmsServices {
       _isPending = true;
       GmsLogger.debug('GmsServices: начало инициализации');
       await Firebase.initializeApp();
-      // Устанавливаем колбек для Messaging, если передан
-      if (onPushBlocked != null) {
-        Messaging.instance.setOnPushBlockedCallback(onPushBlocked);
-      }
 
       final errors = <String>[];
       bool analyticsSuccess = false;
