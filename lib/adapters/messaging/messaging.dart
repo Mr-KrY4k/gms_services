@@ -129,18 +129,6 @@ final class Messaging {
   /// Запрашивает разрешение на уведомления.
   Future<void> _requestPermission() async {
     try {
-      final alreadyRequested =
-          await _prefs.getBool(
-            MessagingStorageKeys.firstPushRequestPermission,
-          ) ??
-          false;
-      if (!alreadyRequested) {
-        await _prefs.setBool(
-          MessagingStorageKeys.firstPushRequestPermission,
-          true,
-        );
-      }
-
       await _firebaseMessaging.requestPermission();
       GmsLogger.debug('Messaging: разрешение запрошено');
     } catch (e, st) {
