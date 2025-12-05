@@ -159,6 +159,7 @@ final class Messaging {
 
       await _firebaseMessaging.requestPermission();
       GmsLogger.debug('Messaging: разрешение запрошено');
+      await checkNotificationStatus();
     } catch (e, st) {
       GmsLogger.error(
         'Messaging: ошибка при запросе разрешения',
